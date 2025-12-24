@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+
+  address   String?
+  state     String?
+  city      String?
+  postcode  String?
+  phone     String?
+
+  users     User[]
+  courts    Court[]
+  bookings  Booking[]
+
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("OWNER") // OWNER (later: STAFF)
+  businessId   Int
+  business     Business @relation(fields: [businessId], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model Court {
+  id         Int      @id @default(autoincrement())
+  businessId Int
+  business   Business @relation(fields: [businessId], references: [id])
+
+  name       String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  bookings   Booking[]
+
+  @@index([businessId])
+}
+
+model Booking {
+  id           Int      @id @default(autoincrement())
+
+  businessId   Int
+  business     Business @relation(fields: [businessId], references: [id])
+
+  courtId      Int
+  court        Court    @relation(fields: [courtId], references: [id])
+
+  date         String
+  startMinutes Int
+  endMinutes   Int
+
+  customerName String
+  phone        String
+  status       String   @default("CONFIRMED")
+  createdAt    DateTime @default(now())
+
+  @@index([businessId, date])
+  @@index([businessId, courtId, date])
+  @@index([phone])
+}
