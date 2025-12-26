@@ -1,6 +1,56 @@
 import { API_BASE_URL } from "../config";
 import type { Booking, Court, AvailabilityResponse } from "../types";
 
+export type OwnerBusiness = {
+  id: number;
+  name: string;
+  slug: string;
+  address?: string | null;
+  state?: string | null;
+  city?: string | null;
+  postcode?: string | null;
+  phone?: string | null;
+  createdAt?: string;
+};
+
+function getOwnerToken() {
+  return localStorage.getItem("smashit_owner_token") || "";
+}
+
+export async function getBusinessProfile(): Promise<OwnerBusiness> {
+  const token = getOwnerToken();
+  const res = await fetch(`${API_BASE_URL}/api/admin/business/profile`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  return data as OwnerBusiness;
+}
+
+export async function updateBusinessProfile(
+  payload: Partial<OwnerBusiness>
+): Promise<OwnerBusiness> {
+  const token = getOwnerToken();
+  const res = await fetch(`${API_BASE_URL}/api/admin/business/profile`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  return data as OwnerBusiness;
+}
+
+
 export async function listStates() {
   const res = await fetch(`${API_BASE_URL}/api/public/locations/states`);
   const text = await res.text();

@@ -5,17 +5,24 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
-
 import { signToken } from "./auth";
 import { requireAuth } from "./middleware";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const app = express();
 const prisma = new PrismaClient();
+const uploadsDir = path.join(process.cwd(), "uploads");
 
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
+app.use("/uploads", express.static(uploadsDir));
 app.use(cors());
 app.use(express.json());
 
-// ✅ Return JSON instead of HTML when client sends broken JSON
 app.use((err: any, _req: any, res: any, next: any) => {
   if (err?.type === "entity.parse.failed") {
     return res.status(400).json({ error: "Invalid JSON body" });
@@ -75,7 +82,16 @@ app.post("/api/auth/register", async (req, res) => {
   if (!parsed.success)
     return res.status(400).json({ error: "Invalid payload" });
 
-  const { businessName, email, password, address, state, city, postcode, phone } = parsed.data;
+  const {
+    businessName,
+    email,
+    password,
+    address,
+    state,
+    city,
+    postcode,
+    phone,
+  } = parsed.data;
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists)
@@ -124,37 +140,6 @@ app.post("/api/auth/register", async (req, res) => {
   });
 });
 
-app.get("/api/public/businesses", async (req, res) => {
-  try {
-    const state =
-      typeof req.query.state === "string" ? req.query.state.trim() : "";
-    const city =
-      typeof req.query.city === "string" ? req.query.city.trim() : "";
-
-    const where: any = {};
-    if (state) where.state = state;
-    if (city) where.city = city;
-
-    const businesses = await prisma.business.findMany({
-      where,
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        state: true,
-        city: true,
-        address: true,
-        phone: true,
-      },
-    });
-
-    res.json(businesses);
-  } catch (e: any) {
-    res.status(500).json({ error: e?.message ?? "Failed to load businesses" });
-  }
-});
-
 const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -194,7 +179,6 @@ app.post("/api/auth/login", async (req, res) => {
   });
 });
 
-// ✅ Useful for frontend to validate token and load business context
 app.get("/api/auth/me", requireAuth, async (req, res) => {
   const { userId, businessId } = (req as any).auth as AuthPayload;
 
@@ -213,6 +197,37 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({ user, business });
 });
 
+app.get("/api/public/businesses", async (req, res) => {
+  try {
+    const state =
+      typeof req.query.state === "string" ? req.query.state.trim() : "";
+    const city =
+      typeof req.query.city === "string" ? req.query.city.trim() : "";
+
+    const where: any = {};
+    if (state) where.state = state;
+    if (city) where.city = city;
+
+    const businesses = await prisma.business.findMany({
+      where,
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        state: true,
+        city: true,
+        address: true,
+        phone: true,
+      },
+    });
+
+    res.json(businesses);
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Failed to load businesses" });
+  }
+});
+
 // =================================
 // ADMIN (JWT required)
 // =================================
@@ -226,6 +241,80 @@ app.get("/api/admin/business", requireAuth, async (req, res) => {
 
   if (!business) return res.status(404).json({ error: "Business not found" });
   res.json(business);
+});
+
+// ---- Get Profile
+app.get("/api/admin/business/profile", requireAuth, async (req, res) => {
+  try {
+    const { businessId } = (req as any).auth;
+
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        address: true,
+        state: true,
+        city: true,
+        postcode: true,
+        phone: true,
+        createdAt: true,
+      },
+    });
+
+    if (!business) return res.status(404).json({ error: "Business not found" });
+    return res.json(business);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load profile" });
+  }
+});
+
+// ---- Update Profile
+app.put("/api/admin/business/profile", requireAuth, async (req, res) => {
+  try {
+    const { businessId } = (req as any).auth;
+
+    const schema = z.object({
+      address: z.string().min(3).optional(),
+      state: z.string().min(2).optional(),
+      city: z.string().min(2).optional(),
+      postcode: z.string().min(4).optional(),
+      phone: z.string().min(8).optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || "Invalid data",
+      });
+    }
+
+    const updated = await prisma.business.update({
+      where: { id: businessId },
+      data: {
+        address: parsed.data.address ?? undefined,
+        state: parsed.data.state ?? undefined,
+        city: parsed.data.city ?? undefined,
+        postcode: parsed.data.postcode ?? undefined,
+        phone: parsed.data.phone ?? undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        address: true,
+        state: true,
+        city: true,
+        postcode: true,
+        phone: true,
+      },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to update profile" });
+  }
 });
 
 // ---- Courts
@@ -435,10 +524,63 @@ app.post("/api/b/:slug/bookings", async (req, res) => {
   res.status(201).json(booking);
 });
 
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const safeName = file.originalname.replace(/\s+/g, "_");
+    cb(null, `${Date.now()}_${safeName}`);
+  },
+});
+
+const upload = multer({ storage });
+
+app.post("/api/b/:slug/bookings/:id/payment-proof", upload.single("file"), async (req, res) => {
+    try {
+      const slug = req.params.slug;
+      const bookingId = Number(req.params.id);
+
+      if (!req.file) {
+        return res.status(400).json({ error: "file is required" });
+      }
+
+      const business = await prisma.business.findUnique({ where: { slug } });
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const booking = await prisma.booking.findFirst({
+        where: { id: bookingId, businessId: business.id },
+      });
+      if (!booking) {
+        return res.status(404).json({ error: "Booking not found" });
+      }
+
+      const proofUrl = `/uploads/${req.file.filename}`;
+
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          paymentProof: proofUrl,
+          paymentStatus: "SUBMITTED",
+        },
+      });
+
+      return res.json({ ok: true, paymentProof: proofUrl });
+    } catch (e: any) {
+      return res.status(500).json({
+        error: e?.message || "Failed to upload payment proof",
+      });
+    }
+  }
+);
+
 // Customer: list own bookings by phone and name
 app.get("/api/b/:slug/my-bookings", async (req, res) => {
   const slug = req.params.slug;
-  const phone = typeof req.query.phone === "string" ? req.query.phone.trim() : "";
+  const phone =
+    typeof req.query.phone === "string" ? req.query.phone.trim() : "";
   const name = typeof req.query.name === "string" ? req.query.name.trim() : "";
 
   if (!phone && !name) {
@@ -464,7 +606,7 @@ app.get("/api/b/:slug/my-bookings", async (req, res) => {
 
   res.json({
     business: { name: business.name, slug: business.slug },
-    bookings: bookings.map((b) => ({
+    bookings: bookings.map((b: (typeof bookings)[number]) => ({
       id: b.id,
       courtId: b.courtId,
       date: b.date,
@@ -478,15 +620,16 @@ app.get("/api/b/:slug/my-bookings", async (req, res) => {
   });
 });
 
-
 // Customer: cancel own booking by id + phone
 app.delete("/api/b/:slug/my-bookings/:id", async (req, res) => {
   const slug = req.params.slug;
   const id = Number(req.params.id);
-  const phone = typeof req.query.phone === "string" ? req.query.phone.trim() : "";
+  const phone =
+    typeof req.query.phone === "string" ? req.query.phone.trim() : "";
 
   if (!phone) return res.status(400).json({ error: "phone is required" });
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+  if (!Number.isFinite(id))
+    return res.status(400).json({ error: "invalid id" });
 
   const business = await prisma.business.findUnique({ where: { slug } });
   if (!business) return res.status(404).json({ error: "Business not found" });
@@ -504,9 +647,8 @@ app.delete("/api/b/:slug/my-bookings/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-
 app.get("/api/public/locations/states", async (req, res) => {
-  try{
+  try {
     const rows = await prisma.business.findMany({
       where: { state: { not: null } },
       select: { state: true },
@@ -515,7 +657,7 @@ app.get("/api/public/locations/states", async (req, res) => {
     });
 
     const states = rows
-      .map(r => (r.state ?? "").trim())
+      .map((r: { state: string | null }) => (r.state ?? "").trim())
       .filter(Boolean);
     res.json(states);
   } catch (e: any) {
@@ -525,7 +667,8 @@ app.get("/api/public/locations/states", async (req, res) => {
 
 app.get("/api/public/locations/cities", async (req, res) => {
   try {
-    const state = typeof req.query.state === "string" ? req.query.state.trim() : "";
+    const state =
+      typeof req.query.state === "string" ? req.query.state.trim() : "";
     if (!state) return res.status(400).json({ error: "state is required" });
 
     const rows = await prisma.business.findMany({
@@ -536,7 +679,7 @@ app.get("/api/public/locations/cities", async (req, res) => {
     });
 
     const cities = rows
-      .map(r => (r.city ?? "").trim())
+      .map((r: { city: string | null }) => (r.city ?? "").trim())
       .filter(Boolean);
 
     res.json(cities);
@@ -544,7 +687,6 @@ app.get("/api/public/locations/cities", async (req, res) => {
     res.status(500).json({ error: e?.message ?? "Failed to load cities" });
   }
 });
-
 
 // ✅ Optional: JSON 404 for API routes (keeps responses consistent)
 app.use("/api", (_req, res) =>

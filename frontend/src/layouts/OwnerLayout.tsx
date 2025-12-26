@@ -81,6 +81,15 @@ export default function OwnerLayout() {
                 Bookings
               </NavLink>
 
+              <NavLink
+                to="/owner/profile"
+                className={({ isActive }) =>
+                  cx(linkBase, isActive ? linkActive : linkInactive)
+                }
+              >
+                Profile
+              </NavLink>
+
               {/* Later */}
               <div className="pt-2 mt-2 border-t border-slate-100">
                 <div className="px-2 text-xs font-semibold text-slate-400">

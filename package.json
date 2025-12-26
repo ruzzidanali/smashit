@@ -1,7 +1,10 @@
 {
   "name": "smashit",
   "private": true,
-  "workspaces": ["frontend", "backend"],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev": "npm -w backend run dev & npm -w frontend run dev",
     "dev:win": "start cmd /k \"npm -w backend run dev\" && start cmd /k \"npm -w frontend run dev\""

@@ -15,6 +15,8 @@ import OwnerDashboard from "./pages/OwnerDashboard";
 import OwnerCourts from "./pages/OwnerCourts";
 import OwnerBookings from "./pages/OwnerBookings";
 
+import OwnerProfile from "./pages/OwnerProfile";
+
 export default function App() {
   return (
     <Routes>
@@ -45,6 +47,7 @@ export default function App() {
         }
       >
         <Route path="dashboard" element={<OwnerDashboard />} />
+        <Route path="profile" element={<OwnerProfile />} />
         <Route path="courts" element={<OwnerCourts />} />
         <Route path="bookings" element={<OwnerBookings />} />
       </Route>
