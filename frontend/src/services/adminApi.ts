@@ -103,6 +103,8 @@ export type AdminBooking = {
   phone: string;
   status: string;
   createdAt: string;
+  paymentStatus?: "PENDING" | "SUBMITTED" | "VERIFIED";
+  paymentProof?: string | null;
   court: {
     id: number;
     name: string;
@@ -129,3 +131,12 @@ export async function adminCancelBooking(id: number) {
   });
   return json<{ success: true }>(res);
 }
+
+export async function adminVerifyPayment(id: number) {
+  const res = await fetch(`${API_BASE}/api/admin/bookings/${id}/verify-payment`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+  });
+  return json<{ id: number; paymentStatus: string }>(res);
+}
+

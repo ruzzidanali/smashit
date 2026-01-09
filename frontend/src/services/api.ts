@@ -11,6 +11,7 @@ export type OwnerBusiness = {
   postcode?: string | null;
   phone?: string | null;
   createdAt?: string;
+  isProfileComplete?: boolean;
 };
 
 function getOwnerToken() {
@@ -173,4 +174,60 @@ export async function aiChat(message: string): Promise<{ reply: string }> {
   });
   if (!r.ok) throw new Error("AI request failed");
   return r.json();
+}
+
+export async function adminListBookings(date: string): Promise<Booking[]> {
+  const token = getOwnerToken();
+
+  const res = await fetch(`${API_BASE_URL}/api/admin/bookings?date=${encodeURIComponent(date)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const text = await res.text();
+  const data = text? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  return data as Booking[];
+}
+
+export async function adminVerifyPayment(id: number): Promise<{ id: number; paymentStatus: string }> {
+  const token = getOwnerToken();
+
+  const res = await fetch(`${API_BASE_URL}/api/admin/bookings/${id}/verify-payment`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const text = await res.text();
+  const data = text? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  return data as { id: number; paymentStatus: string };
+}
+
+export async function publicUploadPaymentProof(args: {
+  bookingId: number;
+  phone: string;
+  file: File;
+}) {
+  const form = new FormData();
+  form.append("phone", args.phone);
+  form.append("file", args.file);
+
+  const res = await fetch(`${API_BASE_URL}/api/public/bookings/${args.bookingId}/payment-proof`, {
+    method: "POST",
+    body: form,
+  });
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as { ok: true; paymentProof: string};
 }

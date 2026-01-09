@@ -67,7 +67,7 @@ model Booking {
   status       String   @default("CONFIRMED")
   createdAt    DateTime @default(now())
 
-  paymentStatus String? @default("PENDING") // PENDING | SUBMITTED | VERIFIED
+  paymentStatus String @default("PENDING") // PENDING | SUBMITTED | VERIFIED | REJECTED
   paymentProof  String? // filename or url
 
   @@index([businessId, date])

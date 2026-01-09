@@ -17,6 +17,8 @@ import OwnerBookings from "./pages/OwnerBookings";
 
 import OwnerProfile from "./pages/OwnerProfile";
 
+import ProfileGuard from "./components/ProfileGuard";
+
 export default function App() {
   return (
     <Routes>
@@ -42,7 +44,9 @@ export default function App() {
         path="/owner"
         element={
           <OwnerGuard>
-            <OwnerLayout />
+            <ProfileGuard>
+              <OwnerLayout />
+            </ProfileGuard>
           </OwnerGuard>
         }
       >

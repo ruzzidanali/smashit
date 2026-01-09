@@ -48,6 +48,8 @@ export default function OwnerProfile() {
       });
       setBiz(updated);
       setOk("Profile updated");
+      localStorage.setItem("smashit_owner_business", JSON.stringify(updated));
+      window.dispatchEvent(new Event("smashit:business-updated"));
     } catch (e: Error | unknown) {
       setErr(e instanceof Error ? e.message : "Failed to save");
     } finally {

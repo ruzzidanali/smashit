@@ -245,29 +245,38 @@ app.get("/api/admin/business", requireAuth, async (req, res) => {
 
 // ---- Get Profile
 app.get("/api/admin/business/profile", requireAuth, async (req, res) => {
-  try {
-    const { businessId } = (req as any).auth;
+  const { businessId } = (req as any).auth;
 
-    const business = await prisma.business.findUnique({
-      where: { id: businessId },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        address: true,
-        state: true,
-        city: true,
-        postcode: true,
-        phone: true,
-        createdAt: true,
-      },
-    });
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      address: true,
+      state: true,
+      city: true,
+      postcode: true,
+      phone: true,
+      createdAt: true,
+    },
+  });
 
-    if (!business) return res.status(404).json({ error: "Business not found" });
-    return res.json(business);
-  } catch (e: any) {
-    return res.status(500).json({ error: e?.message || "Failed to load profile" });
+  if (!business) {
+    return res.status(404).json({ error: "Business not found" });
   }
+
+  const isProfileComplete =
+    !!business.address &&
+    !!business.state &&
+    !!business.city &&
+    !!business.postcode &&
+    !!business.phone;
+
+  res.json({
+    ...business,
+    isProfileComplete,
+  });
 });
 
 // ---- Update Profile
@@ -389,13 +398,75 @@ app.get("/api/admin/bookings", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "date required (YYYY-MM-DD)" });
 
   const bookings = await prisma.booking.findMany({
-    where: { businessId, date, status: "CONFIRMED" },
-    include: { court: true },
+    where: { 
+      businessId, 
+      date, 
+      status: { not: "CANCELLED" }, 
+    },
+    include: { 
+      court: true,
+     },
     orderBy: { startMinutes: "asc" },
   });
 
   res.json(bookings);
 });
+
+app.patch(
+  "/api/admin/bookings/:id/verify-payment",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { businessId } = (req as any).auth;
+      const id = Number(req.params.id);
+
+      const booking = await prisma.booking.findFirst({
+        where: { id, businessId },
+      });
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+      const updated = await prisma.booking.update({
+        where: { id },
+        data: { paymentStatus: "VERIFIED" },
+        select: { id: true, paymentStatus: true },
+      });
+
+      return res.json(updated);
+    } catch (e: any) {
+      return res
+        .status(500)
+        .json({ error: e?.message || "Failed to verify payment" });
+    }
+  }
+);
+
+app.patch(
+  "/api/admin/bookings/:id/reject-payment",
+  requireAuth,
+  async (req, res) => {
+    const { businessId } = (req as any).auth as AuthPayload;
+    const id = Number(req.params.id);
+
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid booking id" });
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: { id, businessId },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    const updated = await prisma.booking.update({
+      where: { id },
+      data: {
+        paymentStatus: "REJECTED",
+      },
+    });
+
+    res.json({ id: updated.id, paymentStatus: updated.paymentStatus });
+  }
+);
 
 app.delete("/api/admin/bookings/:id", requireAuth, async (req, res) => {
   const { businessId } = (req as any).auth as AuthPayload;
@@ -536,6 +607,51 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+app.post("/api/public/bookings/:id/payment-proof",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const bookingId = Number(req.params.id);
+      const phone = String(req.body.phone || "").trim();
+
+      if (!bookingId || Number.isNaN(bookingId)) {
+        return res.status(400).json({ error: "Invalid booking id" });
+      }
+      if (!phone) {
+        return res.status(400).json({ error: "phone is required" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "file is required" });
+      }
+
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: { business: true},
+      });
+
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+      if (booking.phone !== phone) {
+        return res.status(403).json({ error: "Phone does not match this booking" });
+      }
+
+      const proofUrl = `/uploads/${req.file.filename}`;
+
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          paymentProof: proofUrl,
+          paymentStatus: "SUBMITTED",
+        },
+      });
+
+      return res.json({ ok: true, paymentProof: proofUrl });
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "Upload failed" });
+    }
+  }
+);
+
 app.post("/api/b/:slug/bookings/:id/payment-proof", upload.single("file"), async (req, res) => {
     try {
       const slug = req.params.slug;
@@ -593,14 +709,14 @@ app.get("/api/b/:slug/my-bookings", async (req, res) => {
   const bookings = await prisma.booking.findMany({
     where: {
       businessId: business.id,
-      status: { not: "CANCELLED" },
+      // status: { not: "CANCELLED" },
       ...(phone ? { phone } : {}),
       ...(name ? { customerName: { contains: name } } : {}),
     },
     orderBy: [{ date: "desc" }, { startMinutes: "desc" }],
     include: {
-      court: true, // ✅ needed for court.name
-      business: true, // ✅ optional if you want business name
+      court: true, 
+      business: true,
     },
   });
 
@@ -615,7 +731,12 @@ app.get("/api/b/:slug/my-bookings", async (req, res) => {
       customerName: b.customerName,
       phone: b.phone,
       status: b.status,
+      paymentStatus: b.paymentStatus,
+      paymentProof: b.paymentProof,
       court: { id: b.court.id, name: b.court.name },
+      business: b.business
+        ? { id: b.business.id, name: b.business.name, slug: b.business.slug }
+        : undefined,
     })),
   });
 });
@@ -688,12 +809,10 @@ app.get("/api/public/locations/cities", async (req, res) => {
   }
 });
 
-// ✅ Optional: JSON 404 for API routes (keeps responses consistent)
 app.use("/api", (_req, res) =>
   res.status(404).json({ error: "API route not found" })
 );
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
 });

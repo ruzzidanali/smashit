@@ -4,6 +4,7 @@ import { Loader2, Phone, User, Trash2 } from "lucide-react";
 import { cancelBooking, listBookings } from "../services/api";
 import type { Booking } from "../types";
 import { fmtRange } from "../utils/time";
+import PaymentProofUploader from "../components/PaymentProofUploader";
 
 function getLastSlug() {
   return localStorage.getItem("smashit_last_slug") || "";
@@ -11,6 +12,24 @@ function getLastSlug() {
 
 function getLastPhone() {
   return localStorage.getItem("smashit_last_phone") || "";
+}
+
+const HIDDEN_CANCELLED_KEY = "smashit_hidden_cancelled_booking_ids";
+
+function getHiddenCancelledIds(): number[] {
+  try {
+    const raw = localStorage.getItem(HIDDEN_CANCELLED_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
+function addHiddenCancelledId(id: number) {
+  const set = new Set(getHiddenCancelledIds());
+  set.add(id);
+  localStorage.setItem(HIDDEN_CANCELLED_KEY, JSON.stringify([...set]));
 }
 
 export default function MyBookingsPage() {
@@ -57,7 +76,9 @@ export default function MyBookingsPage() {
       }
 
       setBusinessName(data.business?.name || "");
-      setItems(data.bookings || []);
+      const hidden = new Set(getHiddenCancelledIds());
+      const filtered = (data.bookings || []).filter((b) => !hidden.has(b.id));
+      setItems(filtered);
     } catch (e: unknown) {
       setItems([]);
       setBusinessName("");
@@ -68,26 +89,26 @@ export default function MyBookingsPage() {
   }
 
   async function confirmCancel() {
-  if (!confirmId) return;
+    if (!confirmId) return;
 
-  try {
-    if (!slug) throw new Error("Missing business slug.");
+    try {
+      if (!slug) throw new Error("Missing business slug.");
 
-    // ✅ Find the booking we’re cancelling
-    const booking = items.find((x) => x.id === confirmId);
-    if (!booking) throw new Error("Booking not found in list.");
+      // ✅ Find the booking we’re cancelling
+      const booking = items.find((x) => x.id === confirmId);
+      if (!booking) throw new Error("Booking not found in list.");
 
-    // ✅ Always use the booking’s phone for cancel auth
-    await cancelBooking(slug, confirmId, booking.phone);
+      // ✅ Always use the booking’s phone for cancel auth
+      await cancelBooking(slug, confirmId, booking.phone);
 
-    // ✅ refresh from server (recommended)
-    await load();
+      // ✅ refresh from server (recommended)
+      await load();
 
-    setConfirmId(null);
-  } catch (e: unknown) {
-    alert(e instanceof Error ? e.message : "Failed to cancel booking");
+      setConfirmId(null);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to cancel booking");
+    }
   }
-}
 
   return (
     <div className="grid gap-6">
@@ -149,11 +170,7 @@ export default function MyBookingsPage() {
             </label>
             <div className="mt-2 flex items-center gap-2">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 ring-1 ring-slate-200">
-                {mode === "phone" ? (
-                  <Phone size={18} />
-                ) : (
-                  <User size={18} />
-                )}
+                {mode === "phone" ? <Phone size={18} /> : <User size={18} />}
               </div>
               <input
                 value={query}
@@ -207,38 +224,97 @@ export default function MyBookingsPage() {
                 </div>
 
                 <div className="mt-3 grid gap-2">
-                  {arr.map((b) => (
-                    <div
-                      key={b.id}
-                      className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:justify-between"
-                    >
-                      <div>
-                        <div className="flex gap-2 flex-wrap">
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            {b.court?.name}
-                          </span>
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
-                            {fmtRange(b.startMinutes, b.endMinutes)}
-                          </span>
+                  {arr.map((b) => {
+                    const isCancelled = b.status === "CANCELLED";
+
+                    // ✅ CANCELLED NOTICE CARD
+                    if (isCancelled) {
+                      return (
+                        <div
+                          key={b.id}
+                          className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-extrabold text-rose-800">
+                              Reservation has been cancelled by Admin
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 border border-rose-100">
+                                {b.court?.name ?? `Court #${b.courtId}`}
+                              </span>
+                              <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-slate-700 border border-rose-100">
+                                {fmtRange(b.startMinutes, b.endMinutes)}
+                              </span>
+                              <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-slate-700 border border-rose-100">
+                                {b.customerName} • {b.phone}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              addHiddenCancelledId(b.id);
+                              setItems((prev) =>
+                                prev.filter((x) => x.id !== b.id)
+                              );
+                            }}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                            title="Remove from list"
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // ✅ NORMAL BOOKING CARD
+                    return (
+                      <div
+                        key={b.id}
+                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:justify-between"
+                      >
+                        <div>
+                          <div className="flex gap-2 flex-wrap">
+                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                              {b.court?.name}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
+                              {fmtRange(b.startMinutes, b.endMinutes)}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 text-sm font-semibold">
+                            {b.customerName}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            Phone: {b.phone}
+                          </div>
                         </div>
 
-                        <div className="mt-2 text-sm font-semibold">
-                          {b.customerName}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          Phone: {b.phone}
+                        <div className="flex flex-col gap-3 sm:items-end">
+                          {/* PAYMENT UPLOAD (hide if verified) */}
+                          {b.paymentStatus !== "VERIFIED" && (
+                            <PaymentProofUploader
+                              bookingId={b.id}
+                              phone={b.phone}
+                              onUploaded={load}
+                            />
+                          )}
+
+                          {/* CANCEL */}
+                          <button
+                            onClick={() => setConfirmId(b.id)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                          >
+                            <Trash2 size={16} />
+                            Cancel
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => setConfirmId(b.id)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                      >
-                        <Trash2 size={16} />
-                        Cancel
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

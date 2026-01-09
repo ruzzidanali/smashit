@@ -7,6 +7,7 @@ import CourtGrid from "../components/CourtGrid";
 import BookingModal from "../components/BookingModal";
 import Toast, { type ToastState } from "../components/Toast";
 import { fmtRange } from "../utils/time";
+import PaymentProofUploader from "../components/PaymentProofUploader";
 
 /* ---------------- helpers ---------------- */
 function todayYYYYMMDD() {
@@ -55,6 +56,9 @@ export default function ReservePage() {
     open: false,
     message: "",
   });
+
+  const [lastBookingId, setLastBookingId] = useState<number | null>(null);
+  const [lastBookingPhone, setLastBookingPhone] = useState<string>("");
 
   /* ---------------- data load ---------------- */
   async function load(activeSlug: string) {
@@ -225,6 +229,15 @@ export default function ReservePage() {
             )}
           </div>
 
+          {lastBookingId && lastBookingPhone && (
+            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
+              <PaymentProofUploader
+                bookingId={lastBookingId}
+                phone={lastBookingPhone}
+              />
+            </div>
+            )}
+
           {/* Booking modal */}
           <BookingModal
             open={open}
@@ -233,7 +246,10 @@ export default function ReservePage() {
             date={date}
             court={selectedCourt}
             slot={selectedSlot}
-            onBooked={() => {
+            onBooked={(booking) => {
+              setLastBookingId(booking.id);
+              setLastBookingPhone(booking.phone);
+
               if (selectedCourt && selectedSlot) {
                 setToast({
                   open: true,

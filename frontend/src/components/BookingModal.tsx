@@ -11,7 +11,7 @@ type Props = {
   date: string;
   court: Court | null;
   slot: { startMinutes: number; endMinutes: number } | null;
-  onBooked: () => void;
+  onBooked: (booking: { id: number; phone: string }) => void;
 };
 
 function cx(...xs: Array<string | false | null | undefined>) {
@@ -42,7 +42,7 @@ export default function BookingModal({ open, onClose, slug, date, court, slot, o
     setErr(null);
     setOk(null);
     try {
-      await createBooking(slug, {
+      const created = await createBooking(slug, {
         courtId: court.id,
         date,
         startMinutes: slot.startMinutes,
@@ -51,10 +51,11 @@ export default function BookingModal({ open, onClose, slug, date, court, slot, o
         phone: phone.trim(),
       });
       setOk("Booking confirmed!");
+      const cleanPhone = phone.trim();
       // keep phone so user can check My Bookings easily
-      localStorage.setItem("smashit_last_phone", phone.trim());
+      localStorage.setItem("smashit_last_phone", cleanPhone);
       setCustomerName("");
-      onBooked();
+      onBooked({ id: created.id, phone: cleanPhone });
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Failed to create booking");
     } finally {
