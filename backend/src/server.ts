@@ -28,7 +28,7 @@ app.use("/uploads", express.static(uploadsDir));
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://YOUR-FRONTEND-URL.onrender.com",
+  "https://smashit-frontend.onrender.com",
 ];
 
 app.use(
