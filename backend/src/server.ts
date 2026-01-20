@@ -16,7 +16,10 @@ const app = express();
 const prisma = new PrismaClient();
 
 const PORT = Number(process.env.PORT || 4000);
-const uploadsDir = path.join(process.cwd(), "uploads");
+// const uploadsDir = path.join(process.cwd(), "uploads");
+const uploadsDir = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(process.cwd(), "uploads");
 
 // --------------------------------
 // Bootstrap (uploads + middleware)
