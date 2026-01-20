@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+// import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 
 export default function ImageModal(props: {
