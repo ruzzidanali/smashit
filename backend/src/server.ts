@@ -25,17 +25,24 @@ const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), "uploads"
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
 app.use("/uploads", express.static(uploadsDir));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://YOUR-FRONTEND-URL.onrender.com",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      // "https://YOUR-FRONTEND.onrender.com",
-      // add your deployed frontend URL later
-    ],
+    origin: (origin, cb) => {
+      // allow requests with no origin (Postman, curl)
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 // JSON parse errors → friendly message
