@@ -17,11 +17,7 @@ const prisma = new PrismaClient();
 
 const PORT = Number(process.env.PORT || 4000);
 // const uploadsDir = path.join(process.cwd(), "uploads");
-const uploadsDir =
-  process.env.NODE_ENV === "production"
-    ? "/var/data/uploads"
-    : path.join(process.cwd(), "uploads");
-
+const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), "uploads");
 
 // --------------------------------
 // Bootstrap (uploads + middleware)
@@ -34,6 +30,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:3000",
+      // "https://YOUR-FRONTEND.onrender.com",
       // add your deployed frontend URL later
     ],
     credentials: true,
@@ -768,6 +765,6 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Backend running at http://localhost:${PORT}`);
 });
