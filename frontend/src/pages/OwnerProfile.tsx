@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import { getBusinessProfile, updateBusinessProfile, type OwnerBusiness } from "../services/api";
 
+function minutesToHHMM(min: number) {
+  const h = String(Math.floor(min / 60)).padStart(2, "0");
+  const m = String(min % 60).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function hhmmToMinutes(v: string) {
+  const [h, m] = v.split(":").map(Number);
+  return h * 60 + m;
+}
+
 export default function OwnerProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -15,6 +26,11 @@ export default function OwnerProfile() {
   const [postcode, setPostcode] = useState("");
   const [phone, setPhone] = useState("");
 
+  const [openHHMM, setOpenHHMM] = useState("08:00");
+  const [closeHHMM, setCloseHHMM] = useState("23:00");
+  const [slotMinutes, setSlotMinutes] = useState(60);
+  const [priceRM, setPriceRM] = useState("10");
+
   useEffect(() => {
     (async () => {
       setErr(null);
@@ -26,6 +42,10 @@ export default function OwnerProfile() {
         setCity(b.city ?? "");
         setPostcode(b.postcode ?? "");
         setPhone(b.phone ?? "");
+        setOpenHHMM(minutesToHHMM(b.openMinutes ?? 540));
+        setCloseHHMM(minutesToHHMM(b.closeMinutes ?? 1380));
+        setSlotMinutes(b.slotMinutes ?? 60);
+        setPriceRM(String(((b.priceCents ?? 1000) / 100).toFixed(2)));
       } catch (e: Error | unknown) {
         setErr(e instanceof Error ? e.message : "Failed to load business profile");
       } finally {
@@ -45,6 +65,10 @@ export default function OwnerProfile() {
         city,
         postcode,
         phone,
+        openMinutes: hhmmToMinutes(openHHMM),
+        closeMinutes: hhmmToMinutes(closeHHMM),
+        slotMinutes,
+        priceCents: Math.round(Number(priceRM || "0") * 100),
       });
       setBiz(updated);
       setOk("Profile updated");
@@ -97,7 +121,9 @@ export default function OwnerProfile() {
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-slate-600">Address</label>
+            <label className="text-xs font-semibold text-slate-600">
+              Address
+            </label>
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -107,7 +133,9 @@ export default function OwnerProfile() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600">State</label>
+            <label className="text-xs font-semibold text-slate-600">
+              State
+            </label>
             <input
               value={state}
               onChange={(e) => setState(e.target.value)}
@@ -127,7 +155,9 @@ export default function OwnerProfile() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600">Postcode</label>
+            <label className="text-xs font-semibold text-slate-600">
+              Postcode
+            </label>
             <input
               value={postcode}
               onChange={(e) => setPostcode(e.target.value)}
@@ -137,12 +167,68 @@ export default function OwnerProfile() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600">Phone</label>
+            <label className="text-xs font-semibold text-slate-600">
+              Phone
+            </label>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
               placeholder="e.g. 0123456789"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600">
+              Open Time
+            </label>
+            <input
+              type="time"
+              value={openHHMM}
+              onChange={(e) => setOpenHHMM(e.target.value)}
+              className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus: ring-emerald-200"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600">
+              Close Time
+            </label>
+            <input
+              type="time"
+              value={closeHHMM}
+              onChange={(e) => setCloseHHMM(e.target.value)}
+              className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600">
+              Slot minutes
+            </label>
+            <select
+              value={slotMinutes}
+              onChange={(e) => setSlotMinutes(Number(e.target.value))}
+              className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              {[30, 45, 60, 90, 120].map((n) => (
+                <option key={n} value={n}>
+                  {n} minutes
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600">
+              Price per slot (RM)
+            </label>
+            <input
+              inputMode="decimal"
+              value={priceRM}
+              onChange={(e) => setPriceRM(e.target.value)}
+              placeholder="e.g 10.00"
+              className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
             />
           </div>
         </div>

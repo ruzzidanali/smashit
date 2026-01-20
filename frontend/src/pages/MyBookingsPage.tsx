@@ -14,22 +14,41 @@ function getLastPhone() {
   return localStorage.getItem("smashit_last_phone") || "";
 }
 
-const HIDDEN_CANCELLED_KEY = "smashit_hidden_cancelled_booking_ids";
+function hiddenKey(slug: string) {
+  return `smashit_hidden_bookings:${slug.trim()}`;
+}
 
-function getHiddenCancelledIds(): number[] {
+function getHiddenIds(slug: string): number[] {
   try {
-    const raw = localStorage.getItem(HIDDEN_CANCELLED_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.filter((x) => typeof x === "number") : [];
+    return JSON.parse(localStorage.getItem(hiddenKey(slug)) || "[]");
   } catch {
     return [];
   }
 }
 
-function addHiddenCancelledId(id: number) {
-  const set = new Set(getHiddenCancelledIds());
+function addHiddenId(slug: string, id: number) {
+  const set = new Set(getHiddenIds(slug));
   set.add(id);
-  localStorage.setItem(HIDDEN_CANCELLED_KEY, JSON.stringify([...set]));
+  localStorage.setItem(hiddenKey(slug), JSON.stringify([...set]));
+}
+
+function paymentLabel(ps?: string) {
+  switch (ps) {
+    case "VERIFIED":
+      return {
+        cls: "bg-emerald-50 text-emerald-700",
+        text: "Payment Verified",
+      };
+    case "SUBMITTED":
+      return {
+        cls: "bg-amber-50 text-amber-800",
+        text: "Waiting Verification",
+      };
+    case "REJECTED":
+      return { cls: "bg-rose-50 text-rose-700", text: "Payment Rejected" };
+    default:
+      return { cls: "bg-slate-100 text-slate-700", text: "Payment Pending" };
+  }
 }
 
 export default function MyBookingsPage() {
@@ -76,9 +95,8 @@ export default function MyBookingsPage() {
       }
 
       setBusinessName(data.business?.name || "");
-      const hidden = new Set(getHiddenCancelledIds());
-      const filtered = (data.bookings || []).filter((b) => !hidden.has(b.id));
-      setItems(filtered);
+      const hidden = new Set(getHiddenIds(slug));
+      setItems((data.bookings || []).filter((b) => !hidden.has(b.id)));
     } catch (e: unknown) {
       setItems([]);
       setBusinessName("");
@@ -254,7 +272,7 @@ export default function MyBookingsPage() {
 
                           <button
                             onClick={() => {
-                              addHiddenCancelledId(b.id);
+                              addHiddenId(slug.trim(), b.id);
                               setItems((prev) =>
                                 prev.filter((x) => x.id !== b.id)
                               );
@@ -284,6 +302,30 @@ export default function MyBookingsPage() {
                               {fmtRange(b.startMinutes, b.endMinutes)}
                             </span>
                           </div>
+                          {(() => {
+                            const p = paymentLabel(b.paymentStatus);
+                            return (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span
+                                  className={`rounded-full px-3 py-1 text-xs font-semibold ${p.cls}`}
+                                >
+                                  {p.text}
+                                </span>
+
+                                {b.paymentStatus === "REJECTED" && (
+                                  <span className="text-xs text-rose-700">
+                                    Please upload a valid payment proof.
+                                  </span>
+                                )}
+
+                                {b.paymentStatus === "VERIFIED" && (
+                                  <span className="text-xs text-emerald-700">
+                                    Thank you! Your payment has been verified.
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           <div className="mt-2 text-sm font-semibold">
                             {b.customerName}
@@ -294,23 +336,28 @@ export default function MyBookingsPage() {
                         </div>
 
                         <div className="flex flex-col gap-3 sm:items-end">
-                          {/* PAYMENT UPLOAD (hide if verified) */}
-                          {b.paymentStatus !== "VERIFIED" && (
-                            <PaymentProofUploader
-                              bookingId={b.id}
-                              phone={b.phone}
-                              onUploaded={load}
-                            />
-                          )}
+                          {/* PAYMENT UPLOAD (only if NOT cancelled) */}
+                          {b.status !== "CANCELLED" &&
+                            b.paymentStatus !== "VERIFIED" && (
+                              <PaymentProofUploader
+                                bookingId={b.id}
+                                phone={b.phone}
+                                paymentStatus={b.paymentStatus}
+                                paymentProof={b.paymentProof || null}
+                                onUploaded={load}
+                              />
+                            )}
 
-                          {/* CANCEL */}
-                          <button
-                            onClick={() => setConfirmId(b.id)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                          >
-                            <Trash2 size={16} />
-                            Cancel
-                          </button>
+                          {/* CANCEL button (only if NOT cancelled) */}
+                          {b.status !== "CANCELLED" && (
+                            <button
+                              onClick={() => setConfirmId(b.id)}
+                              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                            >
+                              <Trash2 size={16} />
+                              Cancel
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

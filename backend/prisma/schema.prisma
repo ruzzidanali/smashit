@@ -18,6 +18,11 @@ model Business {
   postcode  String?
   phone     String?
 
+  openMinutes   Int   @default(540)
+  closeMinutes  Int   @default(1320)
+  slotMinutes   Int   @default(60)
+  priceCents    Int? 
+
   users     User[]
   courts    Court[]
   bookings  Booking[]

@@ -15,7 +15,7 @@ export type Booking = {
   status?: "CONFIRMED" | "CANCELLED";
   createdAt?: string;
   court?: Court;
-  paymentStatus?: "PENDING" | "SUBMITTED" | "VERIFIED";
+  paymentStatus?: "PENDING" | "SUBMITTED" | "VERIFIED" | "REJECTED";
   paymentProof?: string | null;
 };
 

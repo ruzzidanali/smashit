@@ -58,7 +58,7 @@ export default function DiscoverPage() {
     loadStateOptions();
     search(); // show all first
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [state, city]);
 
   // when state changes → refresh cities
   useEffect(() => {
@@ -132,9 +132,10 @@ export default function DiscoverPage() {
           <div className="md:self-end">
             <button
               onClick={search}
+              disabled={loading}
               className="h-10 w-full rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              Search
+              {loading ? "Searching…" : "Search"}
             </button>
           </div>
         </div>
@@ -160,7 +161,10 @@ export default function DiscoverPage() {
           {items.map((b) => (
             <button
               key={b.id}
-              onClick={() => nav(`/b/${b.slug}`)}
+              onClick={() => {
+                localStorage.setItem("smashit_last_slug", b.slug);
+                nav(`/b/${b.slug}`);
+              }}
               className="text-left rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition"
             >
               <div className="text-sm font-extrabold text-slate-900">{b.name}</div>
@@ -168,7 +172,9 @@ export default function DiscoverPage() {
                 {(b.state || "—")}{b.city ? `, ${b.city}` : ""}
               </div>
               <div className="mt-1 text-xs text-slate-500 font-mono">{b.slug}</div>
-              <div className="mt-1 text-xs text-slate-500 font-mono">{b.phone}</div>
+              {b.phone && (
+                <div className="mt-1 text-xs text-slate-500 font-mono">{b.phone}</div>
+              )}
             </button>
           ))}
 

@@ -7,21 +7,22 @@ type BookingLite = { id: number; courtId: number; startMinutes: number; endMinut
 type Props = {
   date: string; // YYYY-MM-DD
   courts: Court[];
-  bookings: BookingLite[];
+  bookings: { id: number; courtId: number; startMinutes: number; endMinutes: number }[];
+  openMinutes: number;
+  closeMinutes: number;
+  slotMinutes: number;
+  priceCents: number;
   onPick: (courtId: number, slot: { startMinutes: number; endMinutes: number }) => void;
 };
 
-const OPEN_MIN = 8 * 60;   // 08:00
-const CLOSE_MIN = 23 * 60; // 23:00
-const SLOT_MIN = 60;       // 60-min slots
-
-function makeSlots() {
+function makeSlots(openMin: number, closeMin: number, slotMin: number) {
   const slots: { startMinutes: number; endMinutes: number }[] = [];
-  for (let s = OPEN_MIN; s + SLOT_MIN <= CLOSE_MIN; s += SLOT_MIN) {
-    slots.push({ startMinutes: s, endMinutes: s + SLOT_MIN });
+  for (let s = openMin; s + slotMin <= closeMin; s += slotMin) {
+    slots.push({ startMinutes: s, endMinutes: s + slotMin });
   }
   return slots;
 }
+
 
 function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
   return aStart < bEnd && aEnd > bStart;
@@ -40,8 +41,11 @@ function nowMinutesLocal() {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-export default function CourtGrid({ date, courts, bookings, onPick }: Props) {
-  const slots = useMemo(() => makeSlots(), []);
+export default function CourtGrid({ date, courts, bookings, openMinutes, closeMinutes, slotMinutes, priceCents, onPick, }: Props) {
+  const slots = useMemo(
+    () => makeSlots(openMinutes, closeMinutes, slotMinutes),
+    [openMinutes, closeMinutes, slotMinutes]
+  );
   const today = todayYYYYMMDD();
   const isToday = date === today;
   const isPastDate = date < today;
@@ -67,12 +71,19 @@ export default function CourtGrid({ date, courts, bookings, onPick }: Props) {
         const booked = byCourt.get(court.id) || [];
 
         return (
-          <div key={court.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div
+            key={court.id}
+            className="rounded-2xl border border-slate-200 bg-white p-4"
+          >
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="font-outfit text-base font-extrabold text-slate-900">{court.name}</div>
+                <div className="font-outfit text-base font-extrabold text-slate-900">
+                  {court.name}
+                </div>
                 <div className="text-xs text-slate-500">
-                  {slots.length} fixed time slots{isToday ? " · past times disabled" : ""}
+                  {slots.length} time slots · {fmtMinutes(openMinutes)}–
+                  {fmtMinutes(closeMinutes)}
+                  {isToday ? " · past times disabled" : ""}
                 </div>
               </div>
               <div className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
@@ -83,13 +94,24 @@ export default function CourtGrid({ date, courts, bookings, onPick }: Props) {
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {slots.map((slot) => {
                 const isTaken = booked.some((b) =>
-                  overlaps(slot.startMinutes, slot.endMinutes, b.startMinutes, b.endMinutes)
+                  overlaps(
+                    slot.startMinutes,
+                    slot.endMinutes,
+                    b.startMinutes,
+                    b.endMinutes
+                  )
                 );
 
                 const isPast = isToday && slot.startMinutes <= nowMin;
                 const disabled = isTaken || isPast || isPastDate;
 
-                const title = isTaken ? "Booked" : isPastDate ? "Past date not allowed" : isPast ? "Time already passed" : "Available";
+                const title = isTaken
+                  ? "Booked"
+                  : isPastDate
+                  ? "Past date not allowed"
+                  : isPast
+                  ? "Time already passed"
+                  : "Available";
 
                 return (
                   <button
@@ -105,7 +127,14 @@ export default function CourtGrid({ date, courts, bookings, onPick }: Props) {
                     title={title}
                   >
                     <div>{fmtMinutes(slot.startMinutes)}</div>
-                    <div className="text-xs font-medium opacity-80">to {fmtMinutes(slot.endMinutes)}</div>
+                    <div className="text-xs font-medium opacity-80">
+                      to {fmtMinutes(slot.endMinutes)}
+                    </div>
+                    {Number.isFinite(priceCents) && (
+                      <div className="text-[11px] font-medium text-slate-500">
+                        RM {(priceCents / 100).toFixed(2)}
+                      </div>
+                    )}
                   </button>
                 );
               })}

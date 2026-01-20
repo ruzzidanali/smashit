@@ -31,6 +31,15 @@ export default function ReservePage() {
   const [slugInput, setSlugInput] = useState(getLastSlug());
   const [date, setDate] = useState(todayYYYYMMDD());
 
+  type BizCfg = {
+    name: string;
+    openMinutes: number | null;
+    closeMinutes: number | null;
+    slotMinutes: number | null;
+    priceCents: number | null;
+  };
+
+  const [biz, setBiz] = useState<BizCfg | null>(null);
   const [bizName, setBizName] = useState<string | null>(null);
   const [courts, setCourts] = useState<Court[]>([]);
   const [availability, setAvailability] = useState<
@@ -71,11 +80,23 @@ export default function ReservePage() {
       ]);
 
       setBizName(business?.name ?? null);
+      setBiz(
+        business
+          ?{
+            name: business.name,
+            openMinutes: business.openMinutes ?? null,
+            closeMinutes: business.closeMinutes ?? null,
+            slotMinutes: business.slotMinutes ?? null,
+            priceCents: business.priceCents ?? null,
+          }
+        : null
+      );
       setCourts(courts);
       setAvailability(a.bookings);
       localStorage.setItem("smashit_last_slug", activeSlug);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load booking data");
+      setBiz(null);
       setBizName(null);
       setCourts([]);
       setAvailability([]);
@@ -220,6 +241,10 @@ export default function ReservePage() {
                 date={date}
                 courts={courts}
                 bookings={availability}
+                openMinutes={biz?.openMinutes ?? 480}
+                closeMinutes={biz?.closeMinutes ?? 1380}
+                slotMinutes={biz?.slotMinutes ?? 60}
+                priceCents={biz?.priceCents ?? 1000}
                 onPick={(courtId, slot) => {
                   setSelectedCourtId(courtId);
                   setSelectedSlot(slot);
@@ -246,6 +271,7 @@ export default function ReservePage() {
             date={date}
             court={selectedCourt}
             slot={selectedSlot}
+            priceCents={biz?.priceCents ?? 0}
             onBooked={(booking) => {
               setLastBookingId(booking.id);
               setLastBookingPhone(booking.phone);

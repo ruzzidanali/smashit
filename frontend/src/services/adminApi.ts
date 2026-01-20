@@ -140,3 +140,11 @@ export async function adminVerifyPayment(id: number) {
   return json<{ id: number; paymentStatus: string }>(res);
 }
 
+export async function adminRejectPayment(id: number) {
+  const res = await fetch(`${API_BASE}/api/admin/bookings/${id}/reject-payment`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+  });
+  return json<{ id: number; paymentStatus: string }>(res);
+}
+

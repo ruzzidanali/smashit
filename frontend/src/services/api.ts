@@ -10,6 +10,10 @@ export type OwnerBusiness = {
   city?: string | null;
   postcode?: string | null;
   phone?: string | null;
+  openMinutes?: number | null;
+  closeMinutes?: number | null;
+  slotMinutes?: number | null;
+  priceCents?: number | null;
   createdAt?: string;
   isProfileComplete?: boolean;
 };
@@ -95,7 +99,18 @@ export async function listBusinesses(state?: string, city?: string) {
   return data as PublicBusiness[];
 }
 
-type CourtsResponse = { business: { id: number; name: string; slug: string }; courts: Court[] };
+type CourtsResponse = {
+  business: {
+    id: number;
+    name: string;
+    slug: string;
+    openMinutes: number;
+    closeMinutes: number;
+    slotMinutes: number;
+    priceCents: number;
+  };
+  courts: Court[];
+};
 
 export async function getCourts(slug: string): Promise<CourtsResponse> {
   const r = await fetch(`${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/courts`);
