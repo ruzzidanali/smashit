@@ -7,7 +7,7 @@ import OwnerGuard from "./components/OwnerGuard";
 import DiscoverPage from "./pages/DiscoverPage";
 import ReservePage from "./pages/ReservePage";
 import MyBookingsPage from "./pages/MyBookingsPage";
-import AiAssistantPage from "./pages/AiAssistantPage";
+// import AiAssistantPage from "./pages/AiAssistantPage";
 
 import OwnerLogin from "./pages/OwnerLogin";
 import OwnerRegister from "./pages/OwnerRegister";
@@ -28,7 +28,7 @@ export default function App() {
         <Route path="/" element={<DiscoverPage />} />
         <Route path="/reserve" element={<DiscoverPage />} />
         <Route path="/my-bookings" element={<MyBookingsPage />} />
-        <Route path="/ai" element={<AiAssistantPage />} />
+        {/* <Route path="/ai" element={<AiAssistantPage />} /> */}
 
         {/* multi-tenant public */}
         <Route path="/b/:slug" element={<ReservePage />} />
