@@ -35,9 +35,9 @@ export default function PublicLayout() {
             <NavLink to="/my-bookings" className={({ isActive }) => cx(navBase, isActive ? active : inactive)}>
               My Bookings
             </NavLink>
-            <NavLink to="/ai" className={({ isActive }) => cx(navBase, isActive ? active : inactive)}>
+            {/* <NavLink to="/ai" className={({ isActive }) => cx(navBase, isActive ? active : inactive)}>
               AI Assistant
-            </NavLink>
+            </NavLink> */}
 
             <a
               href={`#${adminHref}`}
