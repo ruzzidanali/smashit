@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Info, Loader2 } from "lucide-react";
+import { CalendarDays, Info, Loader2, UserCircle2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { Court } from "../types";
 import { getCourts, getAvailability } from "../services/api";
@@ -61,13 +61,35 @@ export default function ReservePage() {
     [courts, selectedCourtId]
   );
 
-  const [toast, setToast] = useState<ToastState>({
-    open: false,
-    message: "",
-  });
+  const [toast, setToast] = useState<ToastState>({ open: false, message: "" });
 
   const [lastBookingId, setLastBookingId] = useState<number | null>(null);
   const [lastBookingPhone, setLastBookingPhone] = useState<string>("");
+
+  const [userToken, setUserToken] = useState<string | null>(() =>
+    localStorage.getItem("smashit_user_token")
+  );
+
+  const [bookingMode, setBookingMode] = useState<"account" | "guest">(() =>
+    localStorage.getItem("smashit_user_token") ? "account" : "guest"
+  );
+
+  useEffect(() => {
+    function syncAuth() {
+      const t = localStorage.getItem("smashit_user_token");
+      setUserToken(t);
+
+      if (!t) setBookingMode("guest");
+    }
+
+    window.addEventListener("smashit-auth-changed", syncAuth);
+    window.addEventListener("focus", syncAuth);
+
+    return () => {
+      window.removeEventListener("smashit-auth-changed", syncAuth);
+      window.removeEventListener("focus", syncAuth);
+    };
+  }, []);
 
   /* ---------------- data load ---------------- */
   async function load(activeSlug: string) {
@@ -82,14 +104,14 @@ export default function ReservePage() {
       setBizName(business?.name ?? null);
       setBiz(
         business
-          ?{
-            name: business.name,
-            openMinutes: business.openMinutes ?? null,
-            closeMinutes: business.closeMinutes ?? null,
-            slotMinutes: business.slotMinutes ?? null,
-            priceCents: business.priceCents ?? null,
-          }
-        : null
+          ? {
+              name: business.name,
+              openMinutes: business.openMinutes ?? null,
+              closeMinutes: business.closeMinutes ?? null,
+              slotMinutes: business.slotMinutes ?? null,
+              priceCents: business.priceCents ?? null,
+            }
+          : null
       );
       setCourts(courts);
       setAvailability(a.bookings);
@@ -187,21 +209,65 @@ export default function ReservePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <label className="text-xs font-semibold text-slate-600">
-                  Select date
-                </label>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-white ring-1 ring-slate-200">
-                    <CalendarDays size={18} />
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">
+                    Select date
+                  </label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-white ring-1 ring-slate-200">
+                      <CalendarDays size={18} />
+                    </div>
+                    <input
+                      type="date"
+                      value={date}
+                      min={todayYYYYMMDD()}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:ring-2 focus:ring-emerald-200"
+                    />
                   </div>
-                  <input
-                    type="date"
-                    value={date}
-                    min={todayYYYYMMDD()}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:ring-2 focus:ring-emerald-200"
-                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">
+                    Booking mode
+                  </label>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => setBookingMode("guest")}
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                        bookingMode === "guest"
+                          ? "bg-emerald-600 text-white"
+                          : "border border-slate-200 text-slate-600 bg-white"
+                      }`}
+                    >
+                      Guest
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!userToken) {
+                          navigate("/login", { state: { from: `/b/${slug}` } });
+                          return;
+                        }
+                        setBookingMode("account");
+                      }}
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold inline-flex items-center gap-2 ${
+                        bookingMode === "account"
+                          ? "bg-emerald-600 text-white"
+                          : "border border-slate-200 text-slate-600 bg-white"
+                      }`}
+                    >
+                      <UserCircle2 size={16} />
+                      Account
+                    </button>
+
+                    {!userToken && (
+                      <span className="text-xs text-slate-500">
+                        (Login required for account booking)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -261,7 +327,7 @@ export default function ReservePage() {
                 phone={lastBookingPhone}
               />
             </div>
-            )}
+          )}
 
           {/* Booking modal */}
           <BookingModal
@@ -272,6 +338,7 @@ export default function ReservePage() {
             court={selectedCourt}
             slot={selectedSlot}
             priceCents={biz?.priceCents ?? 0}
+            bookingMode={bookingMode}
             onBooked={(booking) => {
               setLastBookingId(booking.id);
               setLastBookingPhone(booking.phone);

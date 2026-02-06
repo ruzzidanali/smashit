@@ -1,5 +1,9 @@
+// src/services/api.ts
 import { API_BASE_URL } from "../config";
 import type { Booking, Court, AvailabilityResponse } from "../types";
+import { throwIfNotOk, parseJsonOrNull } from "./http";
+
+/* ---------------- types ---------------- */
 
 export type OwnerBusiness = {
   id: number;
@@ -18,22 +22,186 @@ export type OwnerBusiness = {
   isProfileComplete?: boolean;
 };
 
+export type CreateBookingPayload = {
+  courtId: number;
+  date: string;
+  startMinutes: number;
+  endMinutes: number;
+  customerName: string;
+  phone: string;
+};
+
+export type AccountMe = {
+  id: number;
+  email: string;
+  name: string;
+  phone: string;
+  role: "USER" | "OWNER" | "ADMIN";
+  isEmailVerified: boolean;
+  createdAt?: string;
+};
+
+/* ---------------- token helpers ---------------- */
+
 function getOwnerToken() {
   return localStorage.getItem("smashit_owner_token") || "";
 }
 
+function getUserToken() {
+  return localStorage.getItem("smashit_user_token") || "";
+}
+
+function userAuthHeader(): Record<string, string> {
+  const token = getUserToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/* ---------------- account (customer) ---------------- */
+
+export async function accountMe(): Promise<{ account: AccountMe }> {
+  const res = await fetch(`${API_BASE_URL}/api/account/me`, {
+    headers: { ...userAuthHeader() },
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { account: AccountMe };
+}
+
+export async function accountRegister(payload: {
+  name: string;
+  phone: string;
+  email: string;
+  password: string;
+}): Promise<{
+  ok: true;
+  message: string;
+  pending?: { email: string; name: string; phone: string; expiresAt: string };
+  devTac?: string;
+}> {
+  const res = await fetch(`${API_BASE_URL}/api/account/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as {
+    ok: true;
+    message: string;
+    pending?: { email: string; name: string; phone: string; expiresAt: string };
+    devTac?: string;
+  };
+}
+
+export async function userLogin(email: string, password: string): Promise<{
+  token: string;
+  account: {
+    id: number;
+    email: string;
+    role: string;
+    name: string;
+    phone: string;
+    createdAt: string;
+    isEmailVerified: boolean;
+  };
+}> {
+  const res = await fetch(`${API_BASE_URL}/api/account/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as {
+    token: string;
+    account: {
+      id: number;
+      email: string;
+      role: string;
+      name: string;
+      phone: string;
+      createdAt: string;
+      isEmailVerified: boolean;
+    };
+  };
+}
+
+export async function verifyAccountEmail(email: string, code: string): Promise<{
+  ok: true;
+  message: string;
+  token?: string;
+  account?: AccountMe;
+}> {
+  const res = await fetch(`${API_BASE_URL}/api/account/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true; message: string; token?: string; account?: AccountMe };
+}
+
+export async function resendAccountTac(email: string): Promise<{
+  ok: true;
+  message: string;
+  devTac?: string;
+}> {
+  const res = await fetch(`${API_BASE_URL}/api/account/resend-tac`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true; message: string; devTac?: string };
+}
+
+export async function updateAccountMe(payload: {
+  email?: string;
+  name?: string;
+  phone?: string;
+}): Promise<{ ok: true; account: AccountMe }> {
+  const res = await fetch(`${API_BASE_URL}/api/account/me`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...userAuthHeader(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true; account: AccountMe };
+}
+
+export async function changeAccountPassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: true; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/account/change-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...userAuthHeader(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true; message: string };
+}
+
+/* ---------------- owner (admin per business) ---------------- */
+
 export async function getBusinessProfile(): Promise<OwnerBusiness> {
   const token = getOwnerToken();
   const res = await fetch(`${API_BASE_URL}/api/admin/business/profile`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as OwnerBusiness;
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as OwnerBusiness;
 }
 
 export async function updateBusinessProfile(
@@ -49,28 +217,25 @@ export async function updateBusinessProfile(
     body: JSON.stringify(payload),
   });
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as OwnerBusiness;
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as OwnerBusiness;
 }
 
+/* ---------------- public (discover / browse) ---------------- */
 
-export async function listStates() {
+export async function listStates(): Promise<string[]> {
   const res = await fetch(`${API_BASE_URL}/api/public/locations/states`);
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as string[];
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as string[];
 }
 
-export async function listCities(state: string) {
+export async function listCities(state: string): Promise<string[]> {
   const qs = new URLSearchParams({ state });
-  const res = await fetch(`${API_BASE_URL}/api/public/locations/cities?${qs.toString()}`);
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as string[];
+  const res = await fetch(
+    `${API_BASE_URL}/api/public/locations/cities?${qs.toString()}`
+  );
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as string[];
 }
 
 export type PublicBusiness = {
@@ -83,21 +248,24 @@ export type PublicBusiness = {
   phone?: string | null;
 };
 
-export async function listBusinesses(state?: string, city?: string) {
+export async function listBusinesses(
+  state?: string,
+  city?: string
+): Promise<PublicBusiness[]> {
   const qs = new URLSearchParams();
   if (state) qs.set("state", state);
   if (city) qs.set("city", city);
 
   const url =
-    `${API_BASE_URL}/api/public/businesses` + (qs.toString() ? `?${qs.toString()}` : "");
+    `${API_BASE_URL}/api/public/businesses` +
+    (qs.toString() ? `?${qs.toString()}` : "");
 
   const res = await fetch(url);
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as PublicBusiness[];
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as PublicBusiness[];
 }
+
+/* ---------------- booking / courts (public by slug) ---------------- */
 
 type CourtsResponse = {
   business: {
@@ -113,136 +281,152 @@ type CourtsResponse = {
 };
 
 export async function getCourts(slug: string): Promise<CourtsResponse> {
-  const r = await fetch(`${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/courts`);
-  if (!r.ok) throw new Error("Failed to load courts");
-  return r.json();
+  const res = await fetch(`${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/courts`);
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as CourtsResponse;
 }
 
-export async function getAvailability(slug: string, date: string): Promise<AvailabilityResponse> {
-  const r = await fetch(
-    `${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/availability?date=${encodeURIComponent(date)}`
-  );
-  if (!r.ok) throw new Error("Failed to load availability");
-  return r.json();
-}
-
-export async function createBooking(
+export async function getAvailability(
   slug: string,
-  payload: Omit<Booking, "id" | "status" | "createdAt" | "court">
-) {
-  const r = await fetch(`${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/bookings`, {
+  date: string
+): Promise<AvailabilityResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/availability?date=${encodeURIComponent(
+      date
+    )}`
+  );
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as AvailabilityResponse;
+}
+
+export async function createBooking(slug: string, payload: CreateBookingPayload) {
+  const token = getUserToken();
+
+  const res = await fetch(`${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/bookings`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(payload),
   });
 
-  const data = await r.json().catch(() => ({}));
+  // Keep special message for conflicts:
+  if (res.status === 409) {
+    const data = await parseJsonOrNull(res);
+    throw { code: "CONFLICT", error: (data as { error?: string })?.error || "Slot already booked" };
+  }
 
-  if (r.status === 409) throw new Error(data?.error || "Slot already booked");
-  if (!r.ok) throw new Error(data?.error || "Failed to create booking");
-
-  return data as Booking;
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as Booking;
 }
 
-export async function listBookings(slug: string, params: { phone?: string; name?: string }) {
+export async function listBookings(
+  slug: string,
+  params: { phone?: string; name?: string }
+): Promise<{ business: { name: string; slug: string }; bookings: Booking[] }> {
   const qs = new URLSearchParams();
   if (params.phone) qs.set("phone", params.phone);
   if (params.name) qs.set("name", params.name);
 
-  const res = await fetch(`${API_BASE_URL}/api/b/${slug}/my-bookings?${qs.toString()}`);
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  const res = await fetch(
+    `${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/my-bookings?${qs.toString()}`
+  );
 
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-
-  return data as {
-    business: { name: string; slug: string };
-    bookings: Booking[];
-  };
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { business: { name: string; slug: string }; bookings: Booking[] };
 }
 
-/**
- * Backend expects phone in querystring as a simple ownership check.
- */
-export async function cancelBooking(slug: string, id: number, phone: string) {
+export async function cancelBooking(slug: string, id: number, phone: string): Promise<{ ok: true }> {
   const qs = new URLSearchParams({ phone });
-  const res = await fetch(`${API_BASE_URL}/api/b/${slug}/my-bookings/${id}?${qs.toString()}`, {
+
+  const res = await fetch(
+    `${API_BASE_URL}/api/b/${encodeURIComponent(slug)}/my-bookings/${id}?${qs.toString()}`,
+    { method: "DELETE" }
+  );
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true };
+}
+
+/* ---------------- logged-in account bookings ---------------- */
+
+export async function listMyAccountBookings(): Promise<{ bookings: Booking[] }> {
+  const res = await fetch(`${API_BASE_URL}/api/me/bookings`, {
+    headers: { ...userAuthHeader() },
+  });
+
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { bookings: Booking[] };
+}
+
+export async function cancelMyAccountBooking(id: number): Promise<{ ok: true }> {
+  const res = await fetch(`${API_BASE_URL}/api/me/bookings/${id}`, {
     method: "DELETE",
+    headers: { ...userAuthHeader() },
   });
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data;
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true };
 }
 
-
-// -------------------------
-// AI endpoint (global)
-// -------------------------
-export async function aiChat(message: string): Promise<{ reply: string }> {
-  const r = await fetch(`${API_BASE_URL}/api/ai/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
-  });
-  if (!r.ok) throw new Error("AI request failed");
-  return r.json();
-}
+/* ---------------- owner bookings admin ---------------- */
 
 export async function adminListBookings(date: string): Promise<Booking[]> {
   const token = getOwnerToken();
+  const res = await fetch(
+    `${API_BASE_URL}/api/admin/bookings?date=${encodeURIComponent(date)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
 
-  const res = await fetch(`${API_BASE_URL}/api/admin/bookings?date=${encodeURIComponent(date)}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const text = await res.text();
-  const data = text? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as Booking[];
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as Booking[];
 }
 
-export async function adminVerifyPayment(id: number): Promise<{ id: number; paymentStatus: string }> {
+export async function adminVerifyPayment(
+  id: number
+): Promise<{ id: number; paymentStatus: string }> {
   const token = getOwnerToken();
-
   const res = await fetch(`${API_BASE_URL}/api/admin/bookings/${id}/verify-payment`, {
     method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
-  const text = await res.text();
-  const data = text? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-  return data as { id: number; paymentStatus: string };
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { id: number; paymentStatus: string };
 }
+
+/* ---------------- upload payment proof (multipart) ---------------- */
 
 export async function publicUploadPaymentProof(args: {
   bookingId: number;
   phone: string;
   file: File;
-}) {
+}): Promise<{ ok: true; paymentProof: string }> {
   const form = new FormData();
   form.append("phone", args.phone);
   form.append("file", args.file);
 
-  const res = await fetch(`${API_BASE_URL}/api/public/bookings/${args.bookingId}/payment-proof`, {
+  const res = await fetch(
+    `${API_BASE_URL}/api/public/bookings/${args.bookingId}/payment-proof`,
+    { method: "POST", body: form }
+  );
+
+  // cannot use throwIfNotOk because parseJsonOrNull consumes body text already,
+  // but we still can:
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { ok: true; paymentProof: string };
+}
+
+/* ---------------- AI (optional) ---------------- */
+
+export async function aiChat(message: string): Promise<{ reply: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/chat`, {
     method: "POST",
-    body: form,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
   });
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!res.ok) {
-    const msg = data?.error || `Request failed (${res.status})`;
-    throw new Error(msg);
-  }
-
-  return data as { ok: true; paymentProof: string};
+  await throwIfNotOk(res);
+  return (await parseJsonOrNull(res)) as { reply: string };
 }

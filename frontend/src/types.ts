@@ -6,18 +6,20 @@ export type Court = {
 
 export type Booking = {
   id: number;
+  businessId: number;
   courtId: number;
-  date: string; // YYYY-MM-DD
+  date: string;
   startMinutes: number;
   endMinutes: number;
   customerName: string;
   phone: string;
-  status?: "CONFIRMED" | "CANCELLED";
-  createdAt?: string;
-  court?: Court;
-  paymentStatus?: "PENDING" | "SUBMITTED" | "VERIFIED" | "REJECTED";
+  status: string;
+  paymentStatus?: string;
   paymentProof?: string | null;
+  court?: { id: number; name: string };
+  business?: { id: number; name: string; slug: string };
 };
+
 
 export type AvailabilityResponse = {
   date: string;

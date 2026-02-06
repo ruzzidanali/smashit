@@ -8,25 +8,66 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum AccountRole {
+  USER
+  OWNER
+  ADMIN
+}
+
+model Account {
+  id           Int         @id @default(autoincrement())
+  email        String      @unique
+  passwordHash String
+  role         AccountRole @default(USER)
+  name         String?
+  phone        String?
+  isEmailVerified Boolean  @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  businessUsers BusinessUser[]
+  bookings      Booking[]
+  emailTacs     EmailTac[]
+
+  @@index([phone])
+}
+
+model BusinessUser {
+  id         Int      @id @default(autoincrement())
+  accountId  Int
+  businessId Int
+  createdAt  DateTime @default(now())
+
+  account  Account  @relation(fields: [accountId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([accountId, businessId])
+  @@index([businessId])
+}
+
 model Business {
-  id        Int      @id @default(autoincrement())
-  name      String
-  slug      String   @unique
+  id   Int    @id @default(autoincrement())
+  name String
+  slug String @unique
 
-  address   String?
-  state     String?
-  city      String?
-  postcode  String?
-  phone     String?
+  address  String?
+  state    String?
+  city     String?
+  postcode String?
+  phone    String?
 
-  openMinutes   Int   @default(540)
-  closeMinutes  Int   @default(1320)
-  slotMinutes   Int   @default(60)
-  priceCents    Int? 
+  openMinutes  Int  @default(540)
+  closeMinutes Int  @default(1320)
+  slotMinutes  Int  @default(60)
+  priceCents   Int?
 
-  users     User[]
-  courts    Court[]
-  bookings  Booking[]
+  // EXISTING
+  users    User[]
+  courts   Court[]
+  bookings Booking[]
+
+  //NEW (opposite relation for BusinessUser.business)
+  businessUsers BusinessUser[]
 
   createdAt DateTime @default(now())
 }
@@ -46,23 +87,22 @@ model Court {
   businessId Int
   business   Business @relation(fields: [businessId], references: [id])
 
-  name       String
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  bookings   Booking[]
+  bookings Booking[]
 
   @@index([businessId])
 }
 
 model Booking {
-  id           Int      @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
+  businessId Int
+  business   Business @relation(fields: [businessId], references: [id])
 
-  businessId   Int
-  business     Business @relation(fields: [businessId], references: [id])
-
-  courtId      Int
-  court        Court    @relation(fields: [courtId], references: [id])
+  courtId Int
+  court   Court @relation(fields: [courtId], references: [id])
 
   date         String
   startMinutes Int
@@ -73,10 +113,43 @@ model Booking {
   status       String   @default("CONFIRMED")
   createdAt    DateTime @default(now())
 
-  paymentStatus String @default("PENDING") // PENDING | SUBMITTED | VERIFIED | REJECTED
-  paymentProof  String? // filename or url
+  // Optional: booking can belong to a logged-in customer account
+  accountId Int?
+  account   Account? @relation(fields: [accountId], references: [id])
+
+  paymentStatus String  @default("PENDING")
+  paymentProof  String?
 
   @@index([businessId, date])
   @@index([businessId, courtId, date])
   @@index([phone])
+  @@index([accountId])
+}
+
+model EmailTac {
+  id          Int       @id @default(autoincrement())
+  accountId   Int
+  codeHash    String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime @default(now())
+  
+  account     Account  @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+model PendingAccount {
+  id      Int       @id @default(autoincrement())
+  email   String    @unique
+  name    String
+  phone   String
+  passwordHash  String
+  tacHash String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([expiresAt])
 }

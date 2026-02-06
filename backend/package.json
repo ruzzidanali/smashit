@@ -22,6 +22,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "resend": "^6.9.1",
     "zod": "^4.2.1"
   },
   "devDependencies": {
