@@ -59,13 +59,32 @@ function userAuthHeader(): Record<string, string> {
 /* ---------------- account (customer) ---------------- */
 
 export async function accountMe(): Promise<{ account: AccountMe }> {
+  const token = getUserToken();
   const res = await fetch(`${API_BASE_URL}/api/account/me`, {
-    headers: { ...userAuthHeader() },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
-  await throwIfNotOk(res);
-  return (await parseJsonOrNull(res)) as { account: AccountMe };
+  if (!res.ok) {
+    const text = await res.text();
+    let data: Record<string, unknown> | null = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      // ignore
+    }
+
+    throw {
+      status: res.status,
+      message:
+        (data as Record<string, unknown> | null)?.error ||
+        `Request failed (${res.status})`,
+      code: (data as Record<string, unknown> | null)?.code,
+    };
+  }
+
+  return (await res.json()) as { account: AccountMe };
 }
+
 
 export async function accountRegister(payload: {
   name: string;

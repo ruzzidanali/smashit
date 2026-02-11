@@ -123,6 +123,8 @@ export default function BookingModal({
       // keep phone so user can check My Bookings easily (guest-friendly)
       localStorage.setItem("smashit_last_phone", cleanPhone);
 
+      window.dispatchEvent(new Event("smashit-booking-changed"));
+
       // optional: reset only in guest mode
       if (bookingMode === "guest") {
         setCustomerName("");

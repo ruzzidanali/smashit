@@ -29,7 +29,7 @@ export default function App() {
         <Route path="/" element={<DiscoverPage />} />
 
         {/* Reserve should show ReservePage, not DiscoverPage */}
-        <Route path="/reserve" element={<ReservePage />} />
+        <Route path="/reserve" element={<DiscoverPage />} />
 
         <Route path="/my-bookings" element={<MyBookingsPage />} />
         {/* <Route path="/ai" element={<AiAssistantPage />} /> */}

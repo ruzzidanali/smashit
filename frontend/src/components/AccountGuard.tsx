@@ -6,9 +6,17 @@ export default function AccountGuard({ children }: { children: React.ReactNode }
   const { account, loading } = useAuth();
   const loc = useLocation();
 
-  if (loading) return null;
-
   const from = loc.pathname + loc.search;
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="text-sm text-slate-600">Checking session…</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!account) {
     return <Navigate to="/login" replace state={{ from }} />;

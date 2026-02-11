@@ -18,9 +18,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const r = await accountMe();
       setAccount(r.account);
-    } catch {
-      localStorage.removeItem("smashit_user_token");
-      setAccount(null);
+    } catch (e: unknown) {
+      const status = (e instanceof Error && "status" in e) ? (e as { status: number }).status : undefined;
+      if (status === 401 || status === 403) {
+        localStorage.removeItem("smashit_user_token");
+        setAccount(null);
+        window.dispatchEvent(new Event("smashit-auth-changed"));
+      }
+      // else: keep token (network error / 500 / backend restart)
     } finally {
       setLoading(false);
     }

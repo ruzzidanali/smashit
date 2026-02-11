@@ -314,6 +314,40 @@ app.post(
   })
 );
 
+app.post("/api/auth/login", async (req, res) => {
+  const parsed = LoginSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ error: "Invalid payload" });
+
+  const { email, password } = parsed.data;
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { business: true },
+  });
+
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+
+  const token = signToken({
+    userId: user.id,
+    businessId: user.businessId,
+    role: user.role,
+  });
+
+  res.json({
+    token,
+    business: {
+      id: user.business.id,
+      name: user.business.name,
+      slug: user.business.slug,
+    },
+    user: { id: user.id, email: user.email, role: user.role },
+  });
+});
+
 
 // Auth retrieve
 app.get(
@@ -1343,6 +1377,7 @@ app.get(
     const bookings = await prisma.booking.findMany({
       where: {
         businessId: business.id,
+        accountId: null,
         ...(phone ? { phone } : {}),
         ...(name ? { customerName: { contains: name } } : {}),
       },
@@ -1384,7 +1419,14 @@ app.delete(
     const business = await prisma.business.findUnique({ where: { slug } });
     if (!business) return res.status(404).json({ error: "Business not found" });
 
-    const booking = await prisma.booking.findFirst({ where: { id, businessId: business.id, phone } });
+    const booking = await prisma.booking.findFirst({ 
+      where: { 
+        id, 
+        businessId: business.id, 
+        phone,
+        accountId: null,
+      }, 
+    });
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
     await prisma.booking.update({ where: { id }, data: { status: "CANCELLED" } });

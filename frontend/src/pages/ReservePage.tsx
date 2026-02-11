@@ -91,6 +91,12 @@ export default function ReservePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (userToken) {
+      setBookingMode("account");
+    }
+  }, [userToken]);
+
   /* ---------------- data load ---------------- */
   async function load(activeSlug: string) {
     setLoading(true);
@@ -233,16 +239,18 @@ export default function ReservePage() {
                     Booking mode
                   </label>
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={() => setBookingMode("guest")}
-                      className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                        bookingMode === "guest"
-                          ? "bg-emerald-600 text-white"
-                          : "border border-slate-200 text-slate-600 bg-white"
-                      }`}
-                    >
-                      Guest
-                    </button>
+                    {!userToken && (
+                      <button
+                        onClick={() => setBookingMode("guest")}
+                        className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                          bookingMode === "guest"
+                            ? "bg-emerald-600 text-white"
+                            : "border border-slate-200 text-slate-600 bg-white"
+                        }`}
+                      >
+                        Guest
+                      </button>
+                    )}
 
                     <button
                       onClick={() => {
